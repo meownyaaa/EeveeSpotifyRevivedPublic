@@ -30,11 +30,12 @@ class ProfileSettingsSectionHook: ClassHook<NSObject> {
             //
             
             let button = UIButton()
-
-            button.setImage(
-                BundleHelper.shared.uiImage("github").withRenderingMode(.alwaysOriginal),
-                for: .normal
-            )
+            
+            if let gitImage = BundleHelper.shared.uiImage("github") {
+                button.setImage(gitImage.withRenderingMode(.alwaysOriginal), for: .normal)
+            } else {
+                button.setImage(UIImage(systemName: "globe"), for: .normal)
+            }
             
             button.addTarget(
                 eeveeSettingsController,

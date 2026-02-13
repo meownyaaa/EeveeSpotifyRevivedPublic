@@ -1,6 +1,9 @@
 import Foundation
 import Orion
 
+// Global variable for access token
+public var spotifyAccessToken: String?
+
 // Global counters for debugging 9.1.6
 private var totalRequests = 0
 private var lyricsRequests = 0
@@ -40,6 +43,14 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         task: URLSessionDataTask,
         didCompleteWithError error: Error?
     ) {
+        // Capture authorization token from any request
+        if let request = task.currentRequest,
+           let headers = request.allHTTPHeaderFields,
+           let auth = headers["Authorization"] ?? headers["authorization"],
+           auth.hasPrefix("Bearer ") {
+            spotifyAccessToken = String(auth.dropFirst(7))
+        }
+
         // Log request headers FIRST for ALL requests to lyrics endpoints
         if let url = task.currentRequest?.url, url.absoluteString.contains("lyrics") {
             if let request = task.currentRequest {

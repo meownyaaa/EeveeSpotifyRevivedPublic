@@ -22,25 +22,81 @@ private let petitLyricsRepository = PetitLyricsRepository()
 private func loadCustomLyricsForTrackId(_ trackId: String) throws -> Lyrics {
     
     let source = UserDefaults.lyricsSource
+    writeDebugLog("loadCustomLyricsForTrackId: \(trackId), Source: \(source)")
     
-    // Check if we have captured metadata from the UI hooks
-    let hasMetadata = capturedTrackId == trackId && capturedTrackTitle != nil && capturedArtistName != nil
+    // Always clear captured metadata to ensure we fetch fresh info
+    var currentTitle: String? = nil
+    var currentArtist: String? = nil
+    var hasMetadata = false
     
-    if hasMetadata {
-    }
-    
-    // For 9.1.6: Genius/LRCLIB/Petit need track title/artist
-    // They will only work if we have captured metadata
+    // If metadata is needed (Genius/LRCLIB/Petit), fetch using token
     let needsMetadata = source == .genius || source == .lrclib || source == .petit
     
+    // Check if we already have the metadata cached for this exact trackId
+    if capturedTrackId == trackId, let title = capturedTrackTitle, let artist = capturedArtistName {
+        currentTitle = title
+        currentArtist = artist
+        hasMetadata = true
+        writeDebugLog("Metadata cache hit: \(title) - \(artist)")
+    }
+    
+    // Fetch if missing
+    if !hasMetadata {
+        
+        // Try getting metadata from the current player state (most reliable)
+        if let player = statefulPlayer, 
+           let track = player.currentTrack() {
+            let currentId = track.URI().spt_trackIdentifier()
+            
+            if currentId == trackId {
+                currentTitle = track.trackTitle()
+                currentArtist = track.artistTitle()
+                hasMetadata = true
+                
+                // Cache it
+                capturedTrackId = trackId
+                capturedTrackTitle = currentTitle
+                capturedArtistName = currentArtist
+                
+                writeDebugLog("Metadata captured from Player: \(currentTitle!) - \(currentArtist!)")
+            } else {
+                writeDebugLog("Player track ID mismatch. Player: \(currentId), Requested: \(trackId)")
+            }
+        } else {
+             writeDebugLog("Player or CurrentTrack is nil")
+        }
+
+        if !hasMetadata {
+            if let token = spotifyAccessToken {
+                if let info = fetchTrackDetails(trackId: trackId, token: token) {
+                    currentTitle = info.title
+                    currentArtist = info.artist
+                    hasMetadata = true
+                    
+                    // Cache it
+                    capturedTrackId = trackId
+                    capturedTrackTitle = currentTitle
+                    capturedArtistName = currentArtist
+                    
+                    writeDebugLog("Metadata captured from API: \(currentTitle!) - \(currentArtist!)")
+                } else {
+                    writeDebugLog("Metadata API fetch failed")
+                }
+            } else {
+                writeDebugLog("No Access Token available for API fetch")
+            }
+        }
+    }
+    
     if needsMetadata && !hasMetadata {
+        writeDebugLog("Missing metadata for lyrics fetch. Aborting.")
         throw LyricsError.noSuchSong
     }
     
     // Create search query with available data
     let searchQuery = LyricsSearchQuery(
-        title: capturedTrackTitle ?? "",
-        primaryArtist: capturedArtistName ?? "",
+        title: currentTitle ?? "",
+        primaryArtist: currentArtist ?? "",
         spotifyTrackId: trackId
     )
     
@@ -220,27 +276,11 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
         capturedTrackTitle = nil
         capturedArtistName = nil
         capturedTrackId = nil
-        
-        // Delay to let Now Playing UI fully update before capturing
-        Thread.sleep(forTimeInterval: 0.3)
     }
     
     
-    // 1. Try MPNowPlayingInfoCenter first (System info)
-    var info: (title: String?, artist: String?)? = getSystemNowPlayingInfo()
-    
-    // 2. Fallback to view hierarchy scraping if system info failed
-    if info == nil {
-        info = searchViewHierarchyForTrackInfo()
-    }
-
-    if let info = info {
-        capturedTrackTitle = info.title
-        capturedArtistName = info.artist
-        capturedTrackId = trackIdentifier
-    } else {
-        // Keep old metadata if we fail to capture new - better than nothing
-    }
+    // We strictly use API fetching now (handled in loadCustomLyricsForTrackId)
+    // No more UI scraping or system info hacking
     
     // Use track ID version for 9.1.6 where we don't have track objects
     var lyrics = try loadCustomLyricsForTrackId(trackIdentifier)

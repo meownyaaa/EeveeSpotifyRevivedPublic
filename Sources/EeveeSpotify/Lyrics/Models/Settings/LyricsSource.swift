@@ -7,8 +7,8 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     case petit
     case notReplaced
     
-    static var allCases: [LyricsSource] {
-        // Only Musixmatch enabled for production
+    // All sources enabled now that we have reliable metadata fetching
+    public static var allCases: [LyricsSource] {
         return [.musixmatch]
     }
 
@@ -32,8 +32,6 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     var isReplacingLyrics: Bool { self != .notReplaced }
     
     static var defaultSource: LyricsSource {
-        Locale.isInRegion("JP", orHasLanguage: "ja")
-            ? .petit
-            : .lrclib
+        .musixmatch
     }
 }

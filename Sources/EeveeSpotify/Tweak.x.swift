@@ -3,6 +3,9 @@ import EeveeSpotifyC
 import UIKit
 
 func writeDebugLog(_ message: String) {
+    // Log to system console
+    NSLog("[EeveeSpotify] %@", message)
+
     let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
     let timestamp = Date().description
     let logMessage = "[\(timestamp)] \(message)\n"
@@ -59,7 +62,7 @@ func activatePremiumPatchingGroup() {
 }
 
 struct EeveeSpotify: Tweak {
-    static let version = "6.5.1"
+    static let version = "6.5.3"
     
     static var hookTarget: VersionHookTarget {
         let version = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as! String
@@ -71,7 +74,7 @@ struct EeveeSpotify: Tweak {
             return .lastAvailableiOS15
         case "8.9.8":
             return .lastAvailableiOS14
-        case "9.1.0", "9.1.6", "9.1.12":
+        case "9.1.0", "9.1.6", "9.1.12", "9.1.14", "9.1.22":
             // 9.1.x versions don't have offline content helper classes
             return .v91
         default:
@@ -133,6 +136,8 @@ struct EeveeSpotify: Tweak {
 
             writeDebugLog("Activating universal settings integration for 9.1.x")
             UniversalSettingsIntegrationGroup().activate()
+            // Also activate the banner for 9.1.x to ensure visibility if menu is missing
+            // V91SettingsIntegrationGroup().activate()
             writeDebugLog("Universal settings integration activated")
             
             NSLog("[EeveeSpotify] Initialization complete for 9.1.x (with experimental lyrics)")

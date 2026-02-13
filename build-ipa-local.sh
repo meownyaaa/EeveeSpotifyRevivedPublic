@@ -4,8 +4,8 @@ set -e
 # Local IPA build script for EeveeSpotify
 # This script matches the GitHub Actions workflow but runs locally
 
-SPOTIFY_IPA="${1:-Decrypted IPA/com.spotify.client_9.1.12_und3fined.ipa}"
-VERSION="6.5.1"
+SPOTIFY_IPA="${1:-Decrypted IPA/com.spotify.client_9.1.22_und3fined.ipa}"
+VERSION="6.5.3"
 OUTPUT_DIR="Outputs/IPAS"
 
 # Determine package scheme (rootful=arm, rootless=arm64)
@@ -17,11 +17,11 @@ else
 fi
 
 # Extract Spotify version from filename
-SPOTIFY_VERSION=$(basename "$SPOTIFY_IPA" | sed -E 's/.*-([0-9.]+)-Decrypted.ipa/\1/')
+SPOTIFY_VERSION=$(basename "$SPOTIFY_IPA" | sed -E 's/.*-([0-9.]+)-Decrypted.ipa/\1/' | sed -E 's/.*client_([0-9.]+)_und3fined.ipa/\1/')
 
 # Output filenames
-BASE_IPA="$OUTPUT_DIR/EeveeSpotify.ipa"
-PATCHED_IPA="$OUTPUT_DIR/EeveeSpotify-patched.ipa"
+BASE_IPA="$OUTPUT_DIR/EeveeSpotify-$VERSION-$SPOTIFY_VERSION.ipa"
+PATCHED_IPA="$OUTPUT_DIR/EeveeSpotify-$VERSION-$SPOTIFY_VERSION-patched.ipa"
 
 echo "======================================"
 echo "Building EeveeSpotify IPA"
@@ -40,6 +40,7 @@ echo "Using package scheme: $PACKAGE_SCHEME ($ARCH)"
 ivinject-arm64 \
   "$SPOTIFY_IPA" \
   "$BASE_IPA" \
+  --overwrite \
   -i "packages/com.eevee.spotify_${VERSION}_iphoneos-${ARCH}.deb" \
      "${THEOS}/lib/iphone/rootless/SwiftProtobuf.framework" \
      "/tmp/ees-ipa/OpenSpotifySafariExtension/OpenSpotifySafariExtension.appex" \

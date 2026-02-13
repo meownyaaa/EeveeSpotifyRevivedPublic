@@ -7,114 +7,35 @@ var capturedTrackTitle: String?
 var capturedArtistName: String?
 var capturedTrackId: String?
 
-// Function to get metadata from MPNowPlayingInfoCenter
-func getSystemNowPlayingInfo() -> (title: String, artist: String)? {
-    guard let info = MPNowPlayingInfoCenter.default().nowPlayingInfo else {
-        return nil
-    }
+// Function to fetch track details using Spotify API if we have a token
+func fetchTrackDetails(trackId: String, token: String) -> (title: String, artist: String)? {
+    let urlString = "https://api.spotify.com/v1/tracks/\(trackId)"
+    guard let url = URL(string: urlString) else { return nil }
     
-    guard let title = info[MPMediaItemPropertyTitle] as? String,
-          let artist = info[MPMediaItemPropertyArtist] as? String else {
-        return nil
-    }
+    var request = URLRequest(url: url)
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.timeoutInterval = 3.0
     
-    return (title, artist)
-}
-
-// Function to search the view hierarchy for track info
-func searchViewHierarchyForTrackInfo() -> (title: String?, artist: String?)? {
-    guard let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) else {
-        return nil
-    }
+    var result: (String, String)?
+    let semaphore = DispatchSemaphore(value: 0)
     
-    
-    // Common UI labels to exclude (including artist page labels)
-    let excludedLabels = ["Home", "Search", "Library", "Premium", "Your Library", 
-                          "Search", "Home", "Following", "Notifications", "Settings",
-                          "Play", "Pause", "Next", "Previous", "Shuffle", "Repeat",
-                          "Create", "Add", "More", "Share", "Like", "Liked",
-                          "Explore", "About", "Related Artists", "Merch", "Go to store",
-                          "Download", "Queue", "Connect", "Devices", "Lyrics", "Lyrics preview",
-                          "Release countdown", "Upcoming"]
-    
-    // Search for labels that might contain track info
-    var allLabels: [(text: String, fontSize: CGFloat, y: CGFloat, className: String)] = []
-    
-    func searchView(_ view: UIView, depth: Int = 0) {
-        let className = String(describing: type(of: view))
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        defer { semaphore.signal() }
         
-        // Look for UILabel with substantial text
-        if let label = view as? UILabel, let text = label.text, 
-           text.count > 2 && !excludedLabels.contains(text) &&
-           !text.hasPrefix("Explore ") && // Filter out "Explore X" artist page labels
-           !text.hasPrefix("Songs by ") && // Filter out "Songs by X" recommendation labels
-           !text.hasPrefix("Similar to ") && // Filter out "Similar to X" labels
-           !text.contains("–") && !text.contains("—") && // Filter out date ranges like "Apr 10 – Aug 4"
-           text.range(of: "^-?\\d+:\\d+$", options: .regularExpression) == nil && // Filter out timestamps like "0:00", "-2:47", "3:45"
-           text.range(of: "\\d+\\s+(event|concert|show|tour)", options: [.regularExpression, .caseInsensitive]) == nil { // Filter out "19 events", "5 concerts"
-            let fontSize = label.font?.pointSize ?? 0
-            allLabels.append((text, fontSize, label.frame.origin.y, className))
-        }
+        guard let data = data, error == nil else { return }
         
-        // Recurse into subviews (limit depth)
-        if depth < 20 {
-            for subview in view.subviews {
-                searchView(subview, depth: depth + 1)
-            }
+        // Simple JSON parsing
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let name = json["name"] as? String,
+           let artists = json["artists"] as? [[String: Any]],
+           let firstArtist = artists.first,
+           let artistName = firstArtist["name"] as? String {
+            result = (name, artistName)
         }
     }
     
-    searchView(window)
+    task.resume()
+    _ = semaphore.wait(timeout: .now() + 3.0)
     
-    
-    // Filter to only labels with reasonable font sizes (> 10pt) and unique text
-    var seenTexts = Set<String>()
-    let filteredLabels = allLabels.filter { label in
-        let isNewText = !seenTexts.contains(label.text)
-        if isNewText {
-            seenTexts.insert(label.text)
-        }
-        return label.fontSize > 10.0 && isNewText
-    }
-    
-    
-    // Strategy: Track title is usually in a larger font than artist
-    // Sort by font size (descending) then by Y position (ascending)
-    let sorted = filteredLabels.sorted { 
-        if $0.fontSize != $1.fontSize {
-            return $0.fontSize > $1.fontSize
-        }
-        return $0.y < $1.y
-    }
-    
-    // Take the two largest/highest labels as likely candidates
-    if sorted.count >= 2 {
-        let title = sorted[0].text
-        let artist = sorted[1].text
-        
-        
-        return (title, artist)
-    } else if sorted.count == 1 {
-        return nil // Don't use if we only find one
-    }
-    
-    return nil
-}
-
-// Try to hook into NPVScrollViewController to capture track from scrollViewModel
-class V91NPVScrollViewControllerMetadataHook: ClassHook<NSObject> {
-    typealias Group = V91LyricsGroup
-    static var targetName = "NowPlaying_ScrollImpl.NPVScrollViewController"
-    
-    // Hook viewWillAppear to try extracting track info from ivars
-    func viewWillAppear(_ animated: Bool) {
-        orig.viewWillAppear(animated)
-        
-        
-        // Try to search view hierarchy
-        if let info = searchViewHierarchyForTrackInfo() {
-            capturedTrackTitle = info.title
-            capturedArtistName = info.artist
-        }
-    }
+    return result
 }

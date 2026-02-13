@@ -4,7 +4,7 @@
 
 **Updated and maintained by Skye - Current Version 9.1.12**
 
-**Last updated 12/31/25**
+**Last updated 1/15/26**
 
 This tweak makes Spotify think you have a Premium subscription, granting free listening, just like Spotilife, and provides some additional features like custom lyrics.
 

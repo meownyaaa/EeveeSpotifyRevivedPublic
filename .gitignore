@@ -21,3 +21,6 @@ Debs/
 
 # Local Xcode and build artifacts
 *.xcuserstate
+.website/
+.github/copilot-instructions.md
+build_log.txt
